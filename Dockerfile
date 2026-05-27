@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+
 # ffmpeg is needed for video compression (large files > 50 MB)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg && \
