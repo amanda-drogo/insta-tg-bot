@@ -7,6 +7,7 @@ downloads and sends the content right back.
 Runs in webhook mode on Render (free tier) with a health-check endpoint
 for UptimeRobot.
 """
+import asyncio
 import logging
 import os
 
@@ -353,11 +354,41 @@ async def _health(request: web.Request) -> web.Response:
     return web.json_response({"status": "alive", "bot": "InstaDownloaderBot"})
 
 
+# Prevent task garbage collection
+background_tasks = set()
+
+# Track processed updates to handle Telegram retries
+processed_updates = set()
+processed_updates_list = []
+MAX_PROCESSED_UPDATES_CACHE = 1000
+
 async def _webhook(request: web.Request) -> web.Response:
     """POST /webhook — receives Telegram updates."""
-    data = await request.json()
-    update = Update.de_json(data, app.bot)
-    await app.process_update(update)
+    try:
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        
+        # Check for duplicate updates (e.g. from Telegram retries)
+        if update.update_id:
+            if update.update_id in processed_updates:
+                logger.info("Ignoring duplicate update: %s", update.update_id)
+                return web.Response(status=200)
+            
+            processed_updates.add(update.update_id)
+            processed_updates_list.append(update.update_id)
+            if len(processed_updates_list) > MAX_PROCESSED_UPDATES_CACHE:
+                oldest = processed_updates_list.pop(0)
+                processed_updates.discard(oldest)
+        
+        # Process the update in the background and respond with 200 OK immediately
+        # to prevent Telegram from timing out and retrying.
+        task = asyncio.create_task(app.process_update(update))
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
+        
+    except Exception as e:
+        logger.exception("Error in webhook handler")
+        
     return web.Response(status=200)
 
 
