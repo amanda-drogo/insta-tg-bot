@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: insta-tg-bot
+    runtime: docker
+    plan: free
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: INSTA_USERNAME
+        sync: false
+      - key: INSTA_PASSWORD
+        sync: false
+      - key: ALLOWED_USERS
+        sync: false
+      - key: MAX_PROFILE_POSTS
+        value: "50"
